@@ -1,7 +1,9 @@
 import type { BunRequest } from "bun";
+import path from "path";
 import { getBearerToken, validateJWT } from "../auth";
 import type { ApiConfig } from "../config";
 import { getVideo, updateVideo } from "../db/videos";
+import { mediaTypeToExtension } from "./assets";
 import { BadRequestError, UserForbiddenError } from "./errors";
 import { respondWithJSON } from "./json";
 
@@ -23,7 +25,6 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
 
   console.log("uploading thumbnail for video", videoId, "by user", userID);
 
-  // TODO: implement the upload here
   const parsedData = await req.formData();
   const image = await parsedData.get("thumbnail");
   if (!(image instanceof File)) {
@@ -33,25 +34,25 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new BadRequestError(`The image's size exceeds the max of ${MAX_UPLOAD_SIZE}`);
   };
   const mediaType = image.type;
-  const buffer = await image.arrayBuffer();
-  const newBuffer = Buffer.from(buffer);
-  const base64StringFromBuffer = newBuffer.toString("base64");
-  const dataURL = `data:${mediaType};base64,${base64StringFromBuffer}`;
-  
+  if (mediaType !== "image/jpeg" && 
+    mediaType !== "image/png"
+  ) {
+    throw new BadRequestError("The MIME type given is not supported!");
+  }
+  const extension = mediaTypeToExtension(mediaType);
+  const videoFileName = `${videoId}${extension}`;
+  const newPathToThumbnail = path.join(`${cfg.assetsRoot}`, `${videoFileName}`);
   const videoMetadata = await getVideo(cfg.db, videoId);
   if (videoMetadata === undefined) {
     throw new Error("Something went wrong retriving the video");
   }
-  const newThumbnail: Thumbnail = {
-    data: buffer,
-    mediaType: mediaType
-  };
   if (userID !== videoMetadata!.userID) {
     throw new UserForbiddenError("The current logged in user does not have the proper auth \n\
       to interact with this video");
   };
-  
-  videoMetadata.thumbnailURL = dataURL;
+  const newThumbnailURL = `http://localhost:${cfg.port}/assets/${videoFileName}`;
+  videoMetadata.thumbnailURL = newThumbnailURL;
+  Bun.write(newPathToThumbnail, image);
   await updateVideo(cfg.db, videoMetadata);
   return respondWithJSON(200, videoMetadata);
-}
+};
