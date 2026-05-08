@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
 import type { Database } from "bun:sqlite";
+import { randomUUID } from "crypto";
 
 export type Video = {
   id: string;

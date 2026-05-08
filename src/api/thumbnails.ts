@@ -1,4 +1,5 @@
 import type { BunRequest } from "bun";
+import { randomBytes } from "crypto";
 import path from "path";
 import { getBearerToken, validateJWT } from "../auth";
 import type { ApiConfig } from "../config";
@@ -26,7 +27,7 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   console.log("uploading thumbnail for video", videoId, "by user", userID);
 
   const parsedData = await req.formData();
-  const image = await parsedData.get("thumbnail");
+  const image = parsedData.get("thumbnail");
   if (!(image instanceof File)) {
     throw new BadRequestError("This is not a file!");
   };
@@ -40,7 +41,9 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new BadRequestError("The MIME type given is not supported!");
   }
   const extension = mediaTypeToExtension(mediaType);
-  const videoFileName = `${videoId}${extension}`;
+  const uniqueFileId = randomBytes(32);
+  const uniqueBase64String = uniqueFileId.toString("base64url");
+  const videoFileName = `${uniqueBase64String}${extension}`;
   const newPathToThumbnail = path.join(`${cfg.assetsRoot}`, `${videoFileName}`);
   const videoMetadata = await getVideo(cfg.db, videoId);
   if (videoMetadata === undefined) {
