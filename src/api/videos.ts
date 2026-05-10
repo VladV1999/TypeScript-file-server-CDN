@@ -38,16 +38,21 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   const fileName = randomBytes(32).toString("hex");
   const extension = "mp4";
   const fullPath = `${pathToTemp}/${fileName}.${extension}`;
+  let newFilePath;
   try {
     await Bun.write(fullPath, video);
-    const aspectRatio = await getVideoAspectRatio(fullPath);
+    newFilePath = await processVideoForFastStart(fullPath);
+    const aspectRatio = await getVideoAspectRatio(newFilePath);
     const s3file = cfg.s3Client.file(`${aspectRatio}/${fileName}.${extension}`);
-    await s3file.write(Bun.file(fullPath, { type: "video/mp4" }));
+    await s3file.write(Bun.file(newFilePath, { type: "video/mp4" }));
     videoMetadata.videoURL = `https://tubely-1999.s3.us-east-2.amazonaws.com/${aspectRatio}/${fileName}.${extension}`;
     await updateVideo(cfg.db, videoMetadata);
   }
   finally {
-    await rm(fullPath, { force: true });
+    if (newFilePath !== undefined) {
+      await rm(newFilePath, {force: true});
+    }
+    await rm(fullPath), { force: true};
   }
   return respondWithJSON(200, null);
 }
@@ -79,4 +84,15 @@ export async function getVideoAspectRatio(filepath: string) {
     aspectRatio = "other";
   }
   return aspectRatio
+}
+
+export async function processVideoForFastStart(inputFilePath: string) {
+  const newFilePath = inputFilePath + ".processed";
+  const proc = Bun.spawn(["ffmpeg", "-i", inputFilePath, "-movflags", "faststart", "-map_metadata",
+    "0", "-codec", "copy", "-f", "mp4", newFilePath
+  ]);
+  if (await proc.exited !== 0) {
+    throw new Error("Something went wrong with the process to process video for fast start");
+  };
+  return newFilePath;
 }
