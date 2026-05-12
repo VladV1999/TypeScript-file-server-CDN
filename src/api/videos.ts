@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import { rm } from "node:fs/promises";
 import { getBearerToken, validateJWT } from "../auth";
 import { type ApiConfig } from "../config";
-import { getVideo, updateVideo } from "../db/videos";
+import { getVideo, updateVideo, type Video } from "../db/videos";
 import { BadRequestError, UserForbiddenError } from "./errors";
 
 export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
@@ -39,14 +39,16 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   const extension = "mp4";
   const fullPath = `${pathToTemp}/${fileName}.${extension}`;
   let newFilePath;
+  let newVideo;
   try {
     await Bun.write(fullPath, video);
     newFilePath = await processVideoForFastStart(fullPath);
     const aspectRatio = await getVideoAspectRatio(newFilePath);
     const s3file = cfg.s3Client.file(`${aspectRatio}/${fileName}.${extension}`);
     await s3file.write(Bun.file(newFilePath, { type: "video/mp4" }));
-    videoMetadata.videoURL = `https://tubely-1999.s3.us-east-2.amazonaws.com/${aspectRatio}/${fileName}.${extension}`;
+    videoMetadata.videoURL = `${aspectRatio}/${fileName}.${extension}`;
     await updateVideo(cfg.db, videoMetadata);
+    newVideo = await dbVideoToSignedVideo(cfg, videoMetadata);
   }
   finally {
     if (newFilePath !== undefined) {
@@ -54,8 +56,8 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
     }
     await rm(fullPath), { force: true};
   }
-  return respondWithJSON(200, null);
-}
+  return respondWithJSON(200, newVideo);
+};
 
 export async function getVideoAspectRatio(filepath: string) {
   const proc = Bun.spawn(["ffprobe", "-v", "error", "-select_streams",
@@ -84,6 +86,23 @@ export async function getVideoAspectRatio(filepath: string) {
     aspectRatio = "other";
   }
   return aspectRatio
+};
+
+export function generatePresignedURL(cfg: ApiConfig, key: string, expireTime: number) {
+  const upload = cfg.s3Client.presign(key, {
+    expiresIn: expireTime,
+    method: "GET"
+  });
+  return upload;
+};
+
+export async function dbVideoToSignedVideo(cfg: ApiConfig, video: Video) {
+  if (!video.videoURL) {
+    return video;
+  }
+  const presignedURL = generatePresignedURL(cfg, video.videoURL, 3600);
+  video.videoURL = presignedURL;
+  return video;
 }
 
 export async function processVideoForFastStart(inputFilePath: string) {
@@ -95,4 +114,4 @@ export async function processVideoForFastStart(inputFilePath: string) {
     throw new Error("Something went wrong with the process to process video for fast start");
   };
   return newFilePath;
-}
+};
