@@ -1,65 +1,106 @@
-# learn-file-storage-s3-typescript-starter (Tubely)
+# 📦 TypeScript File Server & CDN
 
-This repo contains the starter code for the Tubely application - the #1 tool for engagement bait - for the "Learn File Servers and CDNs with S3 and CloudFront" [course](https://www.boot.dev/courses/learn-file-servers-s3-cloudfront-typescript) on [boot.dev](https://www.boot.dev)
+> A full-stack media upload and delivery system built with TypeScript and Bun — featuring local file storage, AWS S3 integration, CloudFront CDN delivery, and FFMPEG-powered video processing.
 
-## Quickstart
+---
 
-*This is to be used as a *reference\* in case you need it, you should follow the instructions in the course rather than trying to do everything here.
+## What is this?
 
-## 1. Install dependencies
+Tubely is a YouTube-like backend for uploading, storing, and serving video and image content. Files are uploaded through a REST API, processed server-side with FFMPEG, stored in AWS S3, and delivered globally via CloudFront CDN.
 
-- [Typescript](https://www.typescriptlang.org/)
-- [Bun](https://bun.sh/)
-- [FFMPEG](https://ffmpeg.org/download.html) - both `ffmpeg` and `ffprobe` are required to be in your `PATH`.
+This project is where I learned how real media platforms handle file storage — the difference between serving files directly from your server (slow, doesn't scale) vs. offloading to object storage and a CDN (fast, scales infinitely).
 
-```bash
-# linux
-sudo apt update
-sudo apt install ffmpeg
+---
 
-# mac
-brew update
-brew install ffmpeg
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | TypeScript |
+| Runtime | Bun |
+| Database | SQLite (via better-sqlite3) |
+| File storage | AWS S3 |
+| CDN | AWS CloudFront |
+| Media processing | FFMPEG + ffprobe |
+| Frontend | HTML / CSS / JS |
+
+---
+
+## Features
+
+- **File upload API** — accepts images and videos via multipart form data
+- **Local asset storage** — files served from `/assets` during development
+- **S3 integration** — production uploads go directly to an S3 bucket
+- **CloudFront delivery** — media served through CDN for low-latency global access
+- **FFMPEG video processing** — server-side video validation, metadata extraction, and aspect ratio detection
+- **SQLite database** — lightweight persistence for file metadata
+- **Sample media downloader** — `samplesdownload.sh` for quick local testing
+
+---
+
+## Architecture
+
+```
+Client (upload)
+    │
+    ▼
+Express API (Bun runtime)
+    ├── Validate file type & size
+    ├── Process with FFMPEG (video metadata, aspect ratio)
+    ├── Store locally (dev) OR upload to S3 (prod)
+    └── Save metadata to SQLite
+          │
+          ▼
+    CloudFront CDN ← S3 Bucket
+          │
+          ▼
+    Client (fast delivery anywhere)
 ```
 
-- [SQLite 3](https://www.sqlite.org/download.html) only required for you to manually inspect the database.
+---
+
+## Getting Started
+
+**Prerequisites:** Bun, FFMPEG, AWS CLI, SQLite 3
 
 ```bash
-# linux
-sudo apt update
-sudo apt install sqlite3
+# Clone the repo
+git clone https://github.com/VladV1999/TypeScript-file-server-CDN
+cd TypeScript-file-server-CDN
 
-# mac
-brew update
-brew install sqlite3
-```
+# Install dependencies
+bun install
 
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-
-## 2. Download sample images and videos
-
-```bash
+# Download sample media for testing
 ./samplesdownload.sh
-# samples/ dir will be created
-# with sample images and videos
-```
 
-## 3. Configure environment variables
-
-Copy the `.env.example` file to `.env` and fill in the values.
-
-```bash
+# Configure environment
 cp .env.example .env
-```
+# Add your AWS credentials, S3 bucket name, CloudFront URL
 
-You'll need to update values in the `.env` file to match your configuration, but _you won't need to do anything here until the course tells you to_.
-
-## 3. Run the server
-
-```bash
+# Start the server
 bun run src/index.ts
 ```
 
-- You should see a new database file `tubely.db` created in the root directory.
-- You should see a new `assets` directory created in the root directory, this is where the images will be stored.
-- You should see a link in your console to open the local web page.
+Open the link printed in your console to access the local UI.
+
+---
+
+## What I Learned
+
+- The architectural difference between local file serving and CDN-backed delivery — and why it matters at scale
+- How S3 presigned URLs work and when to use them vs. public bucket access
+- CloudFront distribution configuration: origins, cache behaviors, and invalidation
+- FFMPEG as a programmable tool — calling it from TypeScript to extract video metadata and enforce constraints
+- Why SQLite is actually a solid choice for single-server applications with modest write loads
+
+---
+
+## What's Next
+
+- [ ] Video transcoding to multiple resolutions (360p, 720p, 1080p)
+- [ ] Upload progress tracking via WebSockets
+- [ ] User authentication and private media support
+- [ ] Presigned URL uploads (bypass server for large files)
+
+Built as part of the Boot.dev backend cirriculum
